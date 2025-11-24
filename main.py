@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from database import engine, get_db, Base
 from models import PersonModel
 
@@ -35,6 +36,28 @@ class PersonUpdate(BaseModel):
 @app.get("/")
 def root():
     return {"message": "Person API - Use /docs for API documentation"}
+
+@app.get("/health")
+def healthcheck(db: Session = Depends(get_db)):
+    """Check API and database health"""
+    try:
+        # Test database connection
+        db.execute(text("SELECT 1"))
+        return {
+            "status": "healthy",
+            "api": "operational",
+            "database": "connected"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "unhealthy",
+                "api": "operational",
+                "database": "disconnected",
+                "error": str(e)
+            }
+        )
 
 @app.get("/persons", response_model=List[Person])
 def get_all_persons(db: Session = Depends(get_db)):
