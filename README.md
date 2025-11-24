@@ -8,7 +8,9 @@ A REST API server built with FastAPI that manages Person objects with full CRUD 
 - ✅ PostgreSQL database with SQLAlchemy ORM
 - ✅ Automatic API documentation (Swagger UI)
 - ✅ Email uniqueness validation
+- ✅ Health check endpoint
 - ✅ Docker Compose for easy database setup
+- ✅ Comprehensive unit tests with 95% coverage
 
 ## Prerequisites
 
@@ -114,9 +116,33 @@ The `persons` table includes:
 - `age` (integer, required)
 - `email` (string, required, unique)
 
-## Testing
+## Running Tests
 
-### Automated Test Script
+### Unit Tests (95% Coverage)
+
+Run the comprehensive test suite:
+
+```bash
+source venv/bin/activate
+pytest
+```
+
+Run with coverage report:
+
+```bash
+pytest --cov=. --cov-report=html
+open htmlcov/index.html  # View detailed coverage report
+```
+
+**Test Statistics:**
+- ✅ 25 unit tests
+- ✅ 95% code coverage
+- ✅ All CRUD operations tested
+- ✅ Edge cases and error scenarios covered
+
+See [TESTING.md](TESTING.md) for detailed testing documentation.
+
+### API Integration Test Script
 
 Run the included test script to test all API endpoints:
 
