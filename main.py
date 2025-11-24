@@ -1,8 +1,14 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Dict, Optional
+from typing import List, Optional
+from sqlalchemy.orm import Session
+from database import engine, get_db, Base
+from models import PersonModel
 
 app = FastAPI(title="Person API", version="1.0.0")
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
 # Person model
 class Person(BaseModel):
@@ -10,6 +16,9 @@ class Person(BaseModel):
     name: str
     age: int
     email: str
+    
+    class Config:
+        from_attributes = True
 
 class PersonCreate(BaseModel):
     name: str
@@ -21,49 +30,51 @@ class PersonUpdate(BaseModel):
     age: Optional[int] = None
     email: Optional[str] = None
 
-# In-memory storage
-persons_db: Dict[int, Person] = {}
-next_id = 1
+# Pydantic schemas remain for API validation
 
 @app.get("/")
 def root():
     return {"message": "Person API - Use /docs for API documentation"}
 
-@app.get("/persons", response_model=Dict[int, Person])
-def get_all_persons():
+@app.get("/persons", response_model=List[Person])
+def get_all_persons(db: Session = Depends(get_db)):
     """Get all persons"""
-    return persons_db
+    persons = db.query(PersonModel).all()
+    return persons
 
 @app.get("/persons/{person_id}", response_model=Person)
-def get_person(person_id: int):
+def get_person(person_id: int, db: Session = Depends(get_db)):
     """Get a specific person by ID"""
-    if person_id not in persons_db:
+    person = db.query(PersonModel).filter(PersonModel.id == person_id).first()
+    if not person:
         raise HTTPException(status_code=404, detail="Person not found")
-    return persons_db[person_id]
+    return person
 
 @app.post("/persons", response_model=Person, status_code=201)
-def create_person(person_data: PersonCreate):
+def create_person(person_data: PersonCreate, db: Session = Depends(get_db)):
     """Create a new person"""
-    global next_id
+    # Check if email already exists
+    existing_person = db.query(PersonModel).filter(PersonModel.email == person_data.email).first()
+    if existing_person:
+        raise HTTPException(status_code=400, detail="Email already registered")
     
-    person = Person(
-        id=next_id,
+    db_person = PersonModel(
         name=person_data.name,
         age=person_data.age,
         email=person_data.email
     )
-    persons_db[next_id] = person
-    next_id += 1
+    db.add(db_person)
+    db.commit()
+    db.refresh(db_person)
     
-    return person
+    return db_person
 
 @app.put("/persons/{person_id}", response_model=Person)
-def update_person(person_id: int, person_data: PersonUpdate):
+def update_person(person_id: int, person_data: PersonUpdate, db: Session = Depends(get_db)):
     """Update an existing person"""
-    if person_id not in persons_db:
+    person = db.query(PersonModel).filter(PersonModel.id == person_id).first()
+    if not person:
         raise HTTPException(status_code=404, detail="Person not found")
-    
-    person = persons_db[person_id]
     
     # Update only provided fields
     if person_data.name is not None:
@@ -71,16 +82,26 @@ def update_person(person_id: int, person_data: PersonUpdate):
     if person_data.age is not None:
         person.age = person_data.age
     if person_data.email is not None:
+        # Check if new email already exists for another user
+        existing = db.query(PersonModel).filter(
+            PersonModel.email == person_data.email,
+            PersonModel.id != person_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
         person.email = person_data.email
     
-    persons_db[person_id] = person
+    db.commit()
+    db.refresh(person)
     return person
 
 @app.delete("/persons/{person_id}", status_code=204)
-def delete_person(person_id: int):
+def delete_person(person_id: int, db: Session = Depends(get_db)):
     """Delete a person"""
-    if person_id not in persons_db:
+    person = db.query(PersonModel).filter(PersonModel.id == person_id).first()
+    if not person:
         raise HTTPException(status_code=404, detail="Person not found")
     
-    del persons_db[person_id]
+    db.delete(person)
+    db.commit()
     return None
