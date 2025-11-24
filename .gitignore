@@ -15,6 +15,14 @@ ENV/
 *.db
 *.sqlite
 
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
 # IDE
 .vscode/
 .idea/
